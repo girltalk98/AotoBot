@@ -1,17 +1,22 @@
 
 
-#include <Servo.h>
+//#include <Servo.h>
 #include <AFMotor.h>
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C  lcd(0x3F, 16, 2);
 
 AF_DCMotor mtR(4, MOTOR34_64KHZ);
 AF_DCMotor mtL(3, MOTOR34_64KHZ);
-Servo radarServo;
+//Servo radarServo;
 
 #define SERVO_PIN1 9
 #define SERVO_PIN2 10
 
 // Human
-#define HUMANDETACT_PIN A5
+#define HUMANDETACT_PIN 2
 
 // Ultrasonic
 #define ECHO_PIN SERVO_PIN1
@@ -31,15 +36,19 @@ Servo radarServo;
 #define MIN_DIST 40
 
 String motorSet = "";
+String strCmd;
 int curDist1 = 0;
 int curDist2 = 0;
-
+int nSleepStat;
 
 
 void setup()
 {
 	//radarServo.attach(SERVO_PIN2, 0, 180);
 	//radarServo.write(90);
+
+	lcd.init();                      // initialize the lcd 
+	lcd.backlight();
 
 	// 핀 입출력
 	pinMode(ECHO_PIN, INPUT);
@@ -51,6 +60,8 @@ void setup()
 	mtR.setSpeed(0);
 	mtL.setSpeed(0);
 
+	nSleepStat = HIGH;
+
 	delay(1000);
 	Serial.begin(9600);
 }
@@ -59,11 +70,22 @@ void setup()
 
 void loop()
 {
-	delay(50);
+	delay(30);
 
-	// 움직임이 감지될때만 작동	
-	if (digitalRead(HUMANDETACT_PIN) != HIGH)
+	// 움직임이 감지될때만 작동		
+	if (digitalRead(HUMANDETACT_PIN) != HIGH) {
+		if (nSleepStat != LOW) {
+			// LCD 처리 (센서 거리)
+			lcd.clear();
+			lcd.setCursor(0, 0);	// 첫줄
+			lcd.print("(-_-) zzz");
+			lcd.setCursor(0, 1);	// 둘째줄
+			lcd.print("I am sleepy..");
+			nSleepStat = LOW;
+		}
 		return;
+	}
+	nSleepStat = HIGH;
 	
 	// Ultrasonic1 (왼쪽)
 	int distance1 = 0;
@@ -71,9 +93,7 @@ void loop()
 	delayMicroseconds(10);
 	digitalWrite(TRIG_PIN, LOW);
 	distance1 = pulseIn(ECHO_PIN, HIGH) / 58.2; /* 센치미터(cm) */
-
-	Serial.println(distance1);
-
+	
 	// Ultrasonic1 (오른쪽)
 	int distance2 = 0;
 	digitalWrite(TRIG_PIN2, HIGH);
@@ -93,10 +113,18 @@ void loop()
 	Serial.print("Dist2=");
 	Serial.println(curDist2);
 
+	// LCD 처리 (센서 거리)
+	lcd.clear();
+	lcd.setCursor(0, 0);	// 첫줄
+	lcd.print(curDist2);
+	lcd.print("----");
+	lcd.print(curDist1);
 
+	
 	if (curDist1 > MIN_DIST && curDist2 > MIN_DIST)
 	{
 		moveStraight(FORWARD);		
+		strCmd = "GO!! Go!! Go!!";
 	}
 	else// if (curDist1 <= MIN_DIST || curDist2 <= MIN_DIST)
 	{
@@ -104,15 +132,19 @@ void loop()
 		{
 			moveOffset(RIGHT);
 			Serial.println("RIGHT");
+			strCmd = "====>";
 		}
 		else
 		{
 			moveOffset(LEFT);
 			Serial.println("LEFT");			
+			strCmd = "<====";
 		}
 	}
 
-
+	lcd.setCursor(0, 1);	// 둘째줄
+	lcd.print(strCmd);
+	
 	if (Serial.available() > 0)
 	{	
 		String strCommand;
@@ -151,6 +183,9 @@ void loop()
 			break;
 		}
 	}
+
+	
+
 }
 
 void moveStop() {
